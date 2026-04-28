@@ -20,7 +20,7 @@ import DashboardModule from './components/DashboardModule';
 import { FirebaseProvider, useAuth } from './components/FirebaseProvider';
 
 function AppContent() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, authError, login, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'creatives' | 'analytics' | 'leads'>('home');
 
   if (loading) {
@@ -57,6 +57,14 @@ function AppContent() {
             >
               Sign in with Google
             </button>
+            {authError && (
+              <div
+                role="alert"
+                className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                {authError}
+              </div>
+            )}
             <div className="mt-6 text-center pt-6 border-t border-slate-100 flex justify-center gap-4">
               <span className="tech-label !text-slate-300">v5.0.2</span>
               <span className="tech-label !text-slate-300">SECURE_AUTH</span>
