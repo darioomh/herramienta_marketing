@@ -3,8 +3,14 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const { firestoreDatabaseId, ...appConfig } = firebaseConfig as typeof firebaseConfig & {
+  firestoreDatabaseId?: string;
+};
+
+const app = initializeApp(appConfig);
+export const db = firestoreDatabaseId
+  ? getFirestore(app, firestoreDatabaseId)
+  : getFirestore(app);
 export const auth = getAuth(app);
 
 export const signInWithGoogle = async () => {

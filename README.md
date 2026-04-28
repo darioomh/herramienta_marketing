@@ -29,7 +29,7 @@ When you deploy to Vercel (or any other host), you must register the deployed
 domain so Google login works:
 
 1. Open Firebase Console → Authentication → Settings → **Authorized domains**:
-   https://console.firebase.google.com/project/gen-lang-client-0636976968/authentication/settings
+   https://console.firebase.google.com/project/marketpulse-pro-9f2aa/authentication/settings
 2. Add every domain that will serve the app, for example:
    - `your-app.vercel.app` (production)
    - your custom domain, if any
