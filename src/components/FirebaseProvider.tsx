@@ -44,44 +44,52 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    getRedirectResult(auth).catch((error) => {
-      console.error('Redirect login failed', error);
-      setAuthError(describeAuthError(error));
-    });
+    getRedirectResult(auth)
+      .then((result) => {
+        console.log('[auth] getRedirectResult', result ? `user=${result.user.uid}` : 'no pending redirect');
+      })
+      .catch((error) => {
+        console.error('[auth] Redirect login failed', error);
+        setAuthError(describeAuthError(error));
+      });
 
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        try {
-          const userRef = doc(db, 'users', u.uid);
-          const userSnap = await getDoc(userRef);
-
-          const updatableFields = {
-            displayName: u.displayName,
-            photoURL: u.photoURL,
-            lastLogin: serverTimestamp(),
-          };
-
-          if (!userSnap.exists()) {
-            await setDoc(userRef, {
-              ...updatableFields,
-              email: u.email,
-              createdAt: serverTimestamp(),
-            });
-          } else {
-            await setDoc(userRef, updatableFields, { merge: true });
-          }
-        } catch (error) {
-          console.error('Failed to sync user profile', error);
-        }
-        setUser(u);
-      } else {
-        setUser(null);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      console.log('[auth] onAuthStateChanged', u ? `signed in as ${u.email} (${u.uid})` : 'signed out');
+      setUser(u);
       setLoading(false);
+
+      if (u) {
+        void syncUserProfile(u);
+      }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const syncUserProfile = async (u: User) => {
+    try {
+      const userRef = doc(db, 'users', u.uid);
+      const userSnap = await getDoc(userRef);
+
+      const updatableFields = {
+        displayName: u.displayName,
+        photoURL: u.photoURL,
+        lastLogin: serverTimestamp(),
+      };
+
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          ...updatableFields,
+          email: u.email,
+          createdAt: serverTimestamp(),
+        });
+      } else {
+        await setDoc(userRef, updatableFields, { merge: true });
+      }
+    } catch (error) {
+      console.error('[auth] Failed to sync user profile', error);
+    }
+  };
 
   const login = async () => {
     setAuthError(null);
