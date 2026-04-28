@@ -126,8 +126,8 @@ export default function AuditModule() {
                     </div>
                     <h4 className="text-xl font-bold mb-2 tracking-tight">Optimization Report</h4>
                     <p className="text-slate-300 font-medium text-sm leading-relaxed">
-                        {!result.has_fb_pixel ? 
-                            "Detectamos ausencia de rastreo avanzado. Implementar esta tecnología ahora desbloquearía una mejora del 32% en el ROAS proyectado." :
+                        {!result.has_fb_pixel ?
+                            "Detectamos ausencia de rastreo avanzado. Implementar un pixel de conversión te permitirá medir y optimizar campañas con datos reales." :
                             "Configuración básica detectada. Recomendamos escalar el tracking a eventos de comportamiento para mejorar la precisión del modelo."
                         }
                     </p>

@@ -8,6 +8,7 @@ import { useAuth } from './FirebaseProvider';
 interface Prediction {
   estimated_clicks: number;
   estimated_conversions: number;
+  estimated_revenue: number;
   expected_roi_ratio: number;
   recommendation: string;
 }
@@ -17,14 +18,17 @@ export default function PredictorModule() {
   const [inputs, setInputs] = useState({
     budget: 2500,
     cpc: 1.20,
-    conv_rate: 3.5
+    conv_rate: 3.5,
+    aov: 50,
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Prediction | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const calculate = async () => {
     setLoading(true);
     setResult(null);
+    setError(null);
     try {
       const res = await fetch('/api/predict-roi', {
         method: 'POST',
@@ -32,10 +36,15 @@ export default function PredictorModule() {
         body: JSON.stringify({
           budget: inputs.budget,
           cpc_estimated: inputs.cpc,
-          expected_conv_rate: inputs.conv_rate
+          expected_conv_rate: inputs.conv_rate,
+          avg_order_value: inputs.aov,
         }),
       });
-      const data = await res.json();
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Error ${res.status} al calcular ROI.`);
+      }
+      const data: Prediction = await res.json();
       setResult(data);
 
       if (user) {
@@ -46,8 +55,9 @@ export default function PredictorModule() {
           createdAt: serverTimestamp(),
         });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError(e.message || 'Error al calcular ROI.');
     } finally {
       setLoading(false);
     }
@@ -105,6 +115,18 @@ export default function PredictorModule() {
                   />
                 </div>
               </div>
+              <div className="col-span-2">
+                <label className="tech-label mb-2 block">Valor Medio del Pedido / AOV ($)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    className="input-field text-xl font-semibold"
+                    value={inputs.aov}
+                    onChange={(e) => setInputs({ ...inputs, aov: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
             </div>
            </div>
         </div>
@@ -125,6 +147,19 @@ export default function PredictorModule() {
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-red-50 text-red-700 rounded-lg flex items-start gap-3 border border-red-100 mb-6"
+          >
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-tight">Forecast Error</h4>
+              <p className="font-medium text-[11px] leading-snug">{error}</p>
+            </div>
+          </motion.div>
+        )}
         <AnimatePresence mode="wait">
           {result ? (
             <motion.div
@@ -132,9 +167,10 @@ export default function PredictorModule() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6 pb-4"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <ResultStat label="Alcance" value={`${result.estimated_clicks}`} icon={<MousePointer2 size={14} />} />
                 <ResultStat label="Convs" value={result.estimated_conversions} icon={<Target size={14} />} color="text-emerald-600" />
+                <ResultStat label="Ingresos $" value={`$${result.estimated_revenue?.toLocaleString() ?? '-'}`} icon={<DollarSign size={14} />} color="text-emerald-600" />
               </div>
               
               <div className="bg-slate-900 p-8 rounded-xl relative overflow-hidden group">

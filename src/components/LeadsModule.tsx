@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Search, MapPin, Building2, ExternalLink, Mail, Loader2, Download, Rocket, Globe } from 'lucide-react';
+import { Database, Search, MapPin, Building2, ExternalLink, Mail, Loader2, Download, Rocket, Globe, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -20,6 +20,7 @@ export default function LeadsModule() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [scrapedEmails, setScrapedEmails] = useState<string[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`].slice(-5));
@@ -29,8 +30,9 @@ export default function LeadsModule() {
     if (!sector) return;
     setLoading(true);
     setLeads([]);
+    setError(null);
     setLogs(["Iniciando motor de búsqueda neural...", "Escaneando registros B2B..."]);
-    
+
     try {
       addLog(`Buscando prospectos en sector: ${sector}`);
       const res = await fetch('/api/leads', {
@@ -38,8 +40,12 @@ export default function LeadsModule() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sector, location: 'Global' }),
       });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Error ${res.status} al obtener leads.`);
+      }
       const data = await res.json();
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && data.length > 0) {
         addLog(`Éxito: ${data.length} entidades encontradas.`);
         setLeads(data);
         if (user) {
@@ -51,12 +57,12 @@ export default function LeadsModule() {
           });
         }
       } else {
-        addLog("Error: Estructura de datos inválida.");
-        setLeads([]);
+        throw new Error("Gemini no devolvió resultados utilizables.");
       }
-    } catch (error) {
+    } catch (err: any) {
       addLog("Fallo crítico en conexión.");
-      console.error(error);
+      console.error(err);
+      setError(err.message || 'Error de red al buscar leads.');
     } finally {
       setLoading(false);
     }
@@ -66,8 +72,9 @@ export default function LeadsModule() {
     if (!targetUrl) return;
     setLoading(true);
     setScrapedEmails([]);
+    setError(null);
     setLogs([`Conectando a ${targetUrl}...`, "Inyectando script de extracción..."]);
-    
+
     try {
       addLog("Analizando árbol DOM de la página...");
       const res = await fetch('/api/scrape-emails', {
@@ -75,6 +82,10 @@ export default function LeadsModule() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl }),
       });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Error ${res.status} al escanear el dominio.`);
+      }
       const data = await res.json();
       if (data.emails) {
         addLog(`Raspado finalizado: ${data.emails.length} contactos detectados.`);
@@ -88,9 +99,10 @@ export default function LeadsModule() {
           });
         }
       }
-    } catch (error) {
+    } catch (err: any) {
       addLog("Acceso denegado o dominio caído.");
-      console.error(error);
+      console.error(err);
+      setError(err.message || 'Error de red al escanear el dominio.');
     } finally {
       setLoading(false);
     }
@@ -190,6 +202,20 @@ export default function LeadsModule() {
             ))}
             <div className="animate-pulse text-white">PROCESANDO_BYTES...</div>
         </div>
+      )}
+
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-4 bg-red-50 text-red-700 rounded-lg flex items-start gap-3 border border-red-100 mb-6"
+        >
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-xs uppercase tracking-tight">Error en extracción</h4>
+            <p className="font-medium text-[11px] leading-snug">{error}</p>
+          </div>
+        </motion.div>
       )}
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
