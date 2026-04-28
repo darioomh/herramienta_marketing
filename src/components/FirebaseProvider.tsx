@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
   onAuthStateChanged,
   User,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -22,25 +21,18 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const POPUP_FALLBACK_CODES = new Set([
-  'auth/popup-blocked',
-  'auth/operation-not-supported-in-this-environment',
-]);
-
 function describeAuthError(error: unknown): string {
   const code = (error as AuthError | undefined)?.code;
   const message = error instanceof Error ? error.message : String(error);
   switch (code) {
     case 'auth/unauthorized-domain':
-      return `Este dominio no está autorizado en Firebase Authentication. Añádelo en Firebase Console → Authentication → Settings → Authorized domains.`;
-    case 'auth/popup-blocked':
-      return 'El navegador bloqueó el popup de Google. Permite popups o reintenta (se intentará redirección automática).';
-    case 'auth/popup-closed-by-user':
-      return 'Cerraste el popup antes de completar el login.';
+      return 'Este dominio no está autorizado en Firebase Authentication. Añádelo en Firebase Console → Authentication → Settings → Authorized domains.';
     case 'auth/network-request-failed':
       return 'Error de red al contactar Firebase. Revisa la conexión.';
     case 'auth/internal-error':
       return 'Error interno de Firebase Auth. Verifica que Google esté habilitado como proveedor.';
+    case 'auth/operation-not-allowed':
+      return 'Google sign-in no está habilitado en Firebase. Actívalo en Authentication → Sign-in method.';
     default:
       return code ? `${code}: ${message}` : message;
   }
@@ -95,22 +87,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
     setAuthError(null);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithRedirect(auth, provider);
     } catch (error) {
-      const code = (error as AuthError | undefined)?.code;
       console.error('Login failed', error);
-
-      if (code && POPUP_FALLBACK_CODES.has(code)) {
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectError) {
-          console.error('Redirect login failed', redirectError);
-          setAuthError(describeAuthError(redirectError));
-          return;
-        }
-      }
-
       setAuthError(describeAuthError(error));
     }
   };
