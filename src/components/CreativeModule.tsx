@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { Sparkles, Copy, Mail, Layout, Zap, Loader2, Wand2, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from './FirebaseProvider';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 
 interface CreativeBundle {
   slogan: string;
   newsletter_subject: string;
+  newsletter_content: string;
   banner_prompt: string;
   ad_copy: string;
   logo_concept: string;
@@ -18,26 +22,26 @@ interface CreativeBundle {
 }
 
 export default function CreativeModule() {
+  const { user } = useAuth();
   const [product, setProduct] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoLoading, setLogoLoading] = useState(false);
   const [bundle, setBundle] = useState<CreativeBundle | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
-  const generate = async () => {
+  const generateCreative = async () => {
     if (!product) return;
     setLoading(true);
     setLogoUrl(null);
     setBundle(null);
     try {
-      const generateWithModel = async (modelName: string) => {
-        return await ai.models.generateContent({
-          model: modelName,
-          contents: `Genera una IDENTIDAD DE MARCA COMPLETA para este producto en ESPAÑOL: ${product}. 
+      const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
+        contents: [{ role: 'user', parts: [{ text: `Genera una IDENTIDAD DE MARCA COMPLETA para este producto en ESPAÑOL: ${product}. 
           Responde EXCLUSIVAMENTE en formato JSON con la siguiente estructura:
           {
             "slogan": "eslogan corto",
             "newsletter_subject": "asunto atractivo",
+            "newsletter_content": "cuerpo de la newsletter persuasivo y completo",
             "banner_prompt": "prompt para imagen de fondo",
             "ad_copy": "texto persuasivo corto",
             "logo_concept": "objeto único y simple (ej: 'una montaña abstracta')",
@@ -45,76 +49,37 @@ export default function CreativeModule() {
             "tone": "descriptivo (ej: Rebelde, Sofisticado)",
             "values": ["valor1", "valor2"],
             "audience": "público objetivo corto"
-          }
-          Importante: Usa un tono profesional y creativo.`,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                slogan: { type: Type.STRING },
-                newsletter_subject: { type: Type.STRING },
-                banner_prompt: { type: Type.STRING },
-                ad_copy: { type: Type.STRING },
-                logo_concept: { type: Type.STRING },
-                colors: { type: Type.ARRAY, items: { type: Type.STRING } },
-                tone: { type: Type.STRING },
-                values: { type: Type.ARRAY, items: { type: Type.STRING } },
-                audience: { type: Type.STRING },
-              },
-              required: ["slogan", "newsletter_subject", "banner_prompt", "ad_copy", "logo_concept", "colors", "tone", "values", "audience"],
-            },
-          },
-        });
-      };
+          }` }]}],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      });
 
-      let response;
-      try {
-        response = await generateWithModel("gemini-3-flash-preview");
-      } catch (err: any) {
-        console.warn("Retrying with fallback...");
-        response = await generateWithModel("gemini-flash-latest");
+      const data = JSON.parse(response.response.text());
+      setBundle(data);
+      setLoading(false);
+
+      if (user) {
+        try {
+          await addDoc(collection(db, 'history'), {
+            userId: user.uid,
+            type: 'creative',
+            payload: { product, ...data },
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn("Failed to log history", e);
+        }
       }
 
-      const data = JSON.parse(response.text);
-      setBundle(data);
-      setLoading(false); // Text is ready
-
-      // Start image generation separately
       setLogoLoading(true);
       try {
-        const imageResponse = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              {
-                text: `Professional minimalist logo icon for a brand called ${product}. Vision: ${data.logo_concept}. Style: Flat vector, high quality, white background, masterpiece, professional design.`,
-              },
-            ],
-          },
-          config: {
-            imageConfig: {
-              aspectRatio: "1:1"
-            },
-          },
-        });
-
-        const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-        if (imagePart?.inlineData?.data) {
-          setLogoUrl(`data:image/png;base64,${imagePart.inlineData.data}`);
-        } else {
-          throw new Error("No image data");
-        }
-      } catch (imgErr) {
-        console.warn("Gemini image generation failure, using Pollinations fallback:", imgErr);
         const seed = Math.floor(Math.random() * 1000000);
         const cleanLogoPrompt = encodeURIComponent(`Professional logo, minimalist icon for a brand called ${product}, ${data.logo_concept}, flat vector, creative design, high quality, white background, masterpiece`);
         setLogoUrl(`https://pollinations.ai/p/${cleanLogoPrompt}?width=512&height=512&nologo=true&seed=${seed}&model=flux`);
       } finally {
         setLogoLoading(false);
       }
-
-      fetch('/api/track-creative', { method: 'POST' });
     } catch (error: any) {
       console.error("Generation error:", error);
       setLoading(false);
@@ -122,39 +87,38 @@ export default function CreativeModule() {
   };
 
   return (
-    <div className="card p-8 h-full flex flex-col bg-white">
-      <div className="flex items-center gap-4 mb-8">
-        <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-xl shadow-indigo-100">
-          <Sparkles size={24} />
+    <div className="card p-8 bg-white flex flex-col h-full">
+      <header className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center">
+                <Sparkles size={18} strokeWidth={2} />
+            </div>
+            <div>
+                <h3 className="text-lg font-bold text-slate-900 leading-none">Brand Identity</h3>
+                <p className="tech-label mt-1">Creative DNA Engine</p>
+            </div>
         </div>
-        <div>
-          <h3 className="font-display font-bold text-2xl text-slate-900 leading-tight">Brand Studio <span className="text-indigo-600">Pro</span></h3>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Generación de Identidad con Gemini AI</p>
-        </div>
-      </div>
+      </header>
 
-      <div className="space-y-4 mb-10">
+      <div className="space-y-4 mb-8">
         <div className="relative group">
           <textarea
-            placeholder="¿Qué quieres crear? (ej: Cafetería minimalista para nómadas digitales)"
-            className="w-full px-6 py-5 bg-slate-50/50 border border-slate-100 rounded-[2rem] focus:ring-4 focus:ring-indigo-100 focus:bg-white transition-all text-sm h-32 resize-none shadow-sm placeholder:text-slate-400 group-hover:border-slate-200"
+            placeholder="Describe tu visión... (ej: Una agencia de diseño web que usa IA)"
+            className="input-field h-32 resize-none text-base"
             value={product}
             onChange={(e) => setProduct(e.target.value)}
           />
-          <div className="absolute top-4 right-6 text-slate-300">
-            <Layout size={18} />
-          </div>
         </div>
         <button
-          onClick={generate}
+          onClick={generateCreative}
           disabled={loading || !product}
-          className="w-full h-14 bg-slate-900 hover:bg-black text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl shadow-slate-200 disabled:opacity-50 active:scale-95"
+          className="btn-primary w-full"
         >
           {loading ? (
-            <Loader2 size={24} className="animate-spin text-white/80" />
+            <Loader2 size={18} className="animate-spin text-white/50" />
           ) : (
             <>
-              <Wand2 size={22} /> Construir ADN de Marca
+              <Wand2 size={18} /> Iniciar Generación de Marca
             </>
           )}
         </button>
@@ -164,70 +128,89 @@ export default function CreativeModule() {
         <AnimatePresence mode="wait">
           {bundle ? (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
+              className="space-y-8 pb-4"
             >
-              {/* Logo y Colores */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 flex flex-col items-center min-h-[220px] justify-center group hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Propuesta Visual</span>
-                  <div className="w-36 h-36 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 relative shadow-sm group-hover:scale-105 transition-transform">
+                <div className="bg-slate-50 border border-slate-200 p-8 rounded-xl flex flex-col items-center justify-center min-h-[300px]">
+                  <p className="tech-label mb-6">Logo Concept v1.0</p>
+                  <div className="w-48 h-48 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-slate-200 shadow-sm relative group">
                     {logoLoading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <Loader2 size={24} className="animate-spin text-indigo-500" />
-                        <span className="text-[8px] font-bold text-slate-400">PINTANDO...</span>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-10 h-10 border-2 border-slate-100 border-t-slate-900 rounded-full animate-spin" />
                       </div>
                     ) : logoUrl ? (
-                      <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-2" referrerPolicy="no-referrer" />
+                      <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-500" referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="text-slate-200"><Rocket size={40} /></div>
+                      <Rocket size={48} className="text-slate-200" />
                     )}
                   </div>
                 </div>
-                <div className="bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100 hover:bg-white hover:shadow-xl hover:shadow-slate-200/50 transition-all">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Cromática de Marca</span>
-                  <div className="flex gap-3 h-full flex-col">
-                    {bundle.colors.map(color => (
-                        <div key={color} className="flex items-center gap-4 bg-white p-2 rounded-xl border border-slate-100">
-                            <div className="w-12 h-12 rounded-lg shadow-sm border border-black/5" style={{ backgroundColor: color }} />
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">HEX</span>
-                              <span className="text-xs font-mono font-bold text-slate-900">{color}</span>
+                
+                <div className="bg-slate-50 border border-slate-200 p-8 rounded-xl">
+                  <p className="tech-label mb-6">Palette System</p>
+                  <div className="space-y-3">
+                    {bundle.colors.map((color, idx) => (
+                        <div key={`${color}-${idx}`} className="flex items-center gap-4 bg-white p-2.5 rounded-lg border border-slate-200 group/color">
+                            <div className="w-10 h-10 rounded border border-slate-900/10 shadow-sm" style={{ backgroundColor: color }} />
+                            <div className="flex flex-col flex-1">
+                              <span className="text-[10px] font-bold text-slate-400 font-mono uppercase leading-none mb-1">Hex</span>
+                              <span className="text-sm font-mono font-bold text-slate-900 uppercase">{color}</span>
                             </div>
+                            <button 
+                                onClick={() => navigator.clipboard.writeText(color)}
+                                className="p-2 text-slate-300 hover:text-slate-900 transition-colors"
+                            >
+                                <Copy size={16} />
+                            </button>
                         </div>
                     ))}
                   </div>
                 </div>
               </div>
 
-              {/* Atributos */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <BrandAttr title="Marca" value={bundle.tone} />
-                <BrandAttr title="Core" value={bundle.audience} />
-                <div className="col-span-2 bg-white px-6 py-4 rounded-[1.5rem] border border-slate-100 shadow-sm">
-                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Valores Fundamentales</span>
+                <BrandAttr title="Tono" value={bundle.tone} />
+                <BrandAttr title="Audiencia" value={bundle.audience} />
+                <div className="col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                   <p className="tech-label mb-4">Core Values</p>
                    <div className="flex flex-wrap gap-2">
-                        {bundle.values.map(v => (
-                            <span key={v} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-[10px] font-bold tracking-tight">{v}</span>
+                        {bundle.values.map((v, idx) => (
+                            <span key={`${v}-${idx}`} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-md text-[10px] font-bold uppercase tracking-wider">{v}</span>
                         ))}
                    </div>
                 </div>
               </div>
 
-              {/* Mensajería */}
-              <div className="space-y-4 pt-2">
-                <ResultItem icon={<Zap size={14} />} title="Eslogan Principal" content={bundle.slogan} />
-                <ResultItem icon={<Layout size={14} />} title="Copy Publicitario" content={bundle.ad_copy} />
-                <ResultItem icon={<Mail size={14} />} title="Asunto Newsletter" content={bundle.newsletter_subject} />
+              <div className="space-y-4">
+                <ResultItem icon={<Zap size={16} />} title="Slogan" content={bundle.slogan} />
+                <ResultItem icon={<Layout size={16} />} title="Ad Copy" content={bundle.ad_copy} />
+                
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 relative group">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-slate-900 text-white rounded flex items-center justify-center font-bold text-xs">NL</div>
+                            <p className="tech-label">Newsletter Content</p>
+                        </div>
+                        <button 
+                            onClick={() => navigator.clipboard.writeText(bundle.newsletter_content)}
+                            className="p-2 text-slate-300 hover:text-slate-900 transition-colors"
+                        >
+                            <Copy size={18} />
+                        </button>
+                    </div>
+                    <div className="text-base text-slate-700 leading-relaxed whitespace-pre-wrap font-sans bg-white p-6 rounded-lg border border-slate-200">
+                        {bundle.newsletter_content}
+                    </div>
+                </div>
               </div>
             </motion.div>
           ) : (
             !loading && (
-              <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20 bg-white rounded-3xl border border-dashed border-slate-200">
-                <Rocket size={48} className="mb-4 opacity-20" />
-                <p className="text-sm font-bold">Define tu producto para empezar</p>
-                <p className="text-[10px] font-medium opacity-60">IA generará tu universo de marca</p>
+              <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-300 py-12 bg-slate-50/50 border border-dashed border-slate-200 rounded-xl">
+                <Sparkles size={48} strokeWidth={1} className="mb-4 opacity-10" />
+                <p className="tech-label opacity-40">Ready for generation</p>
               </div>
             )
           )}
@@ -239,31 +222,29 @@ export default function CreativeModule() {
 
 function BrandAttr({ title, value }: { title: string; value: string }) {
     return (
-        <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">{title}</span>
-            <span className="text-[11px] font-bold text-slate-900 block truncate">{value}</span>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="tech-label mb-2">{title}</p>
+            <p className="text-sm font-bold text-slate-900 uppercase truncate tracking-tight">{value}</p>
         </div>
     )
 }
 
 function ResultItem({ icon, title, content }: { icon: React.ReactNode, title: string, content: string }) {
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(content);
-  };
-
   return (
-    <div className="group relative p-3 border border-zinc-100 rounded-lg bg-zinc-50/30 hover:bg-white transition-colors">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-purple-600">{icon}</span>
-        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{title}</span>
+    <div className="group relative p-6 border border-slate-200 rounded-xl bg-white hover:border-slate-400 transition-all">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+            <span className="text-slate-400">{icon}</span>
+            <p className="tech-label">{title}</p>
+        </div>
+        <button 
+            onClick={() => navigator.clipboard.writeText(content)}
+            className="text-slate-300 hover:text-slate-900 transition-colors"
+        >
+            <Copy size={16} />
+        </button>
       </div>
-      <p className="text-sm text-zinc-800 leading-relaxed pr-8">{content}</p>
-      <button 
-        onClick={copyToClipboard}
-        className="absolute right-2 top-2 p-1.5 text-zinc-400 hover:text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
-        <Copy size={14} />
-      </button>
+      <p className="text-base text-slate-900 font-medium leading-relaxed truncate">{content}</p>
     </div>
   );
 }

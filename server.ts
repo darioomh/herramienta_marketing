@@ -82,37 +82,39 @@ async function startServer() {
     
     try {
       const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = `Find 5 real companies in the ${sector} sector located in ${location || 'Global'}. 
-      Return the data as a JSON array of objects with keys: name, site (URL), and email (if found, or a generic info@domain).
-      Prioritize accuracy and existing businesses. Return ONLY JSON.`;
-
-      const generateWithModel = async (modelName: string) => {
-        return await genAI.models.generateContent({
-          model: modelName,
-          contents: prompt
-        });
-      };
-
-      let result;
-      try {
-        result = await generateWithModel("gemini-3-flash-preview");
-      } catch (err: any) {
-        console.warn("Primary model error, falling back to gemini-flash-latest");
-        result = await generateWithModel("gemini-flash-latest");
-      }
-
-      const text = result.text;
+      const prompt = `Actúa como un experto en investigación de mercado B2B. Encuentra de 5 a 10 empresas reales, startups, agencias o aplicaciones existentes que operen en el sector: "${sector}". 
+      Contexto geográfico: ${location || 'Global'}. 
       
-      // Extract JSON from potential markdown markers
-      const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s);
-      const leads = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      Debes buscar entidades REALES y VERIFICABLES. Si el sector es un nicho de software como "apps de hábitos para android", busca las apps más populares en Google Play Store (ej: Habitica, Fabulous, Loop, etc).
+      
+      Responde EXCLUSIVAMENTE en formato JSON con la siguiente estructura:
+      {
+        "leads": [
+          {
+            "name": "Nombre real",
+            "site": "dominio.com",
+            "email": "contacto@dominio.com"
+          }
+        ]
+      }`;
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }]}],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      });
+
+      const data = JSON.parse(result.response.text());
+      const leads = data.leads || [];
 
       stats.leads += leads.length;
       res.json(leads);
     } catch (error) {
       console.error("Lead generation error:", error);
-      res.status(500).json({ error: "No se pudieron obtener datos reales en este momento." });
+      res.status(500).json({ error: "Interrupción en el motor de búsqueda neural. Reintente en breve." });
     }
   });
 

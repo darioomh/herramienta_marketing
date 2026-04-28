@@ -1,42 +1,30 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
-
-const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    
-    // Create/update user document
-    const userRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      await setDoc(userRef, {
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-      });
-    } else {
-      await setDoc(userRef, {
-        lastLogin: serverTimestamp(),
-      }, { merge: true });
-    }
-    
-    return user;
-  } catch (error) {
-    console.error("Error signing in with Google:", error);
-    throw error;
-  }
+    const provider = new GoogleAuthProvider();
+    return signInWithPopup(auth, provider);
 };
 
-export const logout = () => auth.signOut();
+export const logout = async () => {
+    return signOut(auth);
+};
+
+// Validar conexión inicial
+async function testConnection() {
+  try {
+    const testDoc = doc(db, 'test', 'connection');
+    await getDocFromServer(testDoc);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration.");
+    }
+  }
+}
+testConnection();

@@ -1,289 +1,248 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Rocket, Activity, Database, Menu, Bell, User, Zap, Search, LogOut } from 'lucide-react';
-import AuditModule from './components/AuditModule';
-import PredictorModule from './components/PredictorModule';
-import CreativeModule from './components/CreativeModule';
-import LeadsModule from './components/LeadsModule';
+import React, { useState } from 'react';
+import { 
+  BarChart3, 
+  Brain, 
+  Database, 
+  LayoutDashboard, 
+  Megaphone, 
+  LogOut,
+  ChevronRight,
+  Activity,
+  Zap,
+  TrendingUp
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, signInWithGoogle, logout } from './lib/firebase';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import AuditModule from './components/AuditModule';
+import CreativeModule from './components/CreativeModule';
+import PredictorModule from './components/PredictorModule';
+import LeadsModule from './components/LeadsModule';
+import DashboardModule from './components/DashboardModule';
+import { FirebaseProvider, useAuth } from './components/FirebaseProvider';
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [globalStats, setGlobalStats] = useState({
-    audits: 1284,
-    creatives: 452,
-    leads: 2109,
-    status: 'Activo'
-  });
+function AppContent() {
+  const { user, loading, login, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<'home' | 'dashboard' | 'creatives' | 'analytics' | 'leads'>('home');
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/stats');
-      const data = await res.json();
-      setGlobalStats({
-        ...data,
-        status: 'Activo'
-      });
-    } catch (e) {
-      console.warn('Could not fetch real-time stats');
-    }
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center font-sans font-mono tracking-tighter">
+        <motion.div 
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          className="text-slate-900 flex items-center gap-4"
+        >
+          <Activity size={24} />
+          <span>INITIALIZING_PROTOCOL...</span>
+        </motion.div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
-    });
-
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
-    return () => {
-      unsubscribe();
-      clearInterval(interval);
-    };
-  }, []);
-
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            className="flex flex-col items-center text-center py-20"
-          >
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-white mb-8 shadow-xl shadow-blue-200">
-              <Rocket size={40} />
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-12">
+            <div className="w-12 h-12 bg-slate-900 text-white rounded-lg flex items-center justify-center mx-auto mb-6">
+              <Zap size={24} />
             </div>
-            <h1 className="text-6xl font-extrabold tracking-tighter text-slate-900 mb-6 lg:text-7xl">
-              El Cerebro de tu <span className="text-indigo-600">Marketing</span>
-            </h1>
-            <p className="text-xl text-slate-500 max-w-2xl mb-16 font-medium leading-relaxed">
-              MarketPulse AI unifica auditoría, generación de contenido, predicción de ROI y extracción de leads en una sola plataforma inteligente para equipos modernos.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-6xl px-4">
-              <HomeCard 
-                icon={<LayoutDashboard size={24} />} 
-                title="Dashboard" 
-                desc="Vista 360 de métricas y auditoría en tiempo real" 
-                color="blue"
-                onClick={() => setActiveTab('dashboard')} 
-              />
-              <HomeCard 
-                icon={<Zap size={24} />} 
-                title="Estudio" 
-                desc="Identidad visual, logos y copys persuasivos" 
-                color="purple"
-                onClick={() => setActiveTab('creatives')} 
-              />
-              <HomeCard 
-                icon={<Activity size={24} />} 
-                title="ROI Prev" 
-                desc="Simula escenarios y predice el retorno de inversión" 
-                color="emerald"
-                onClick={() => setActiveTab('analytics')} 
-              />
-              <HomeCard 
-                icon={<Database size={24} />} 
-                title="Leads" 
-                desc="Extracción automatizada de prospectos B2B" 
-                color="orange"
-                onClick={() => setActiveTab('leads')} 
-              />
-            </div>
-          </motion.div>
-        );
-      case 'dashboard':
-        return (
-          <div className="dashboard-grid">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-              <AuditModule />
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <PredictorModule />
-            </motion.div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">MarketPulse Pro</h1>
+            <p className="tech-label">B2B Intelligence Terminal</p>
           </div>
-        );
-      case 'creatives':
-        return (
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="max-w-4xl mx-auto min-h-[600px]">
-            <CreativeModule />
-          </motion.div>
-        );
-      case 'analytics':
-        return (
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="max-w-4xl mx-auto">
-            <PredictorModule />
-          </motion.div>
-        );
-      case 'leads':
-        return (
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="max-w-5xl mx-auto min-h-[600px]">
-            <LeadsModule />
-          </motion.div>
-        );
-      default:
-        return null;
-    }
-  };
+          
+          <div className="card p-8 border-slate-200">
+            <button 
+              onClick={login}
+              className="btn-primary w-full h-12 font-bold uppercase tracking-wider"
+            >
+              Sign in with Google
+            </button>
+            <div className="mt-6 text-center pt-6 border-t border-slate-100 flex justify-center gap-4">
+              <span className="tech-label !text-slate-300">v5.0.2</span>
+              <span className="tech-label !text-slate-300">SECURE_AUTH</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#FCFCFD]">
-      {/* Top Navbar */}
-      <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4 cursor-pointer group" onClick={() => setActiveTab('home')}>
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-bold text-xl transition-transform group-hover:scale-105">
-            M
+    <div className="min-h-screen bg-white flex flex-col sm:flex-row font-sans selection:bg-slate-900 selection:text-white">
+      {/* Precision Sidebar */}
+      <nav className="w-full sm:w-20 lg:w-64 bg-white border-r border-slate-200 flex flex-col p-6 sm:fixed sm:h-full z-50">
+        <div className="flex items-center gap-3 mb-10 px-2 cursor-pointer" onClick={() => setActiveTab('home')}>
+          <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center shrink-0">
+            <Zap size={20} />
           </div>
-          <span className="font-display font-bold text-xl tracking-tight text-slate-900 hidden sm:inline">MarketPulse<span className="text-indigo-600">AI</span></span>
+          <div className="hidden lg:block">
+            <h2 className="text-sm font-bold tracking-tight text-slate-900 leading-none">MarketPulse</h2>
+            <p className="tech-label !text-slate-400 mt-1 uppercase tracking-widest">Enterprise AI</p>
+          </div>
         </div>
 
-        <nav className="hidden md:flex items-center gap-2 p-1.5 bg-slate-100/50 rounded-2xl border border-slate-200/50">
-          <NavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<Rocket size={18} />} label="Inicio" />
-          <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={18} />} label="Resumen" />
-          <NavItem active={activeTab === 'creatives'} onClick={() => setActiveTab('creatives')} icon={<Zap size={18} />} label="Estudio" />
-          <NavItem active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={<Activity size={18} />} label="ROI" />
-          <NavItem active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} icon={<Database size={18} />} label="Leads" />
-        </nav>
+        <div className="flex-1 space-y-1">
+          <NavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<LayoutDashboard size={16} />} label="Overview" />
+          <div className="pt-6 pb-2 px-4">
+            <span className="tech-label !text-slate-300">Protocolos</span>
+          </div>
+          <NavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<Activity size={16} />} label="Operaciones" />
+          <NavItem active={activeTab === 'creatives'} onClick={() => setActiveTab('creatives')} icon={<Megaphone size={16} />} label="Creative Lab" />
+          <NavItem active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={<TrendingUp size={16} />} label="ROI Forecast" />
+          <NavItem active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} icon={<Database size={16} />} label="Lead Engine" />
+        </div>
 
-        <div className="flex items-center gap-2">
-          {currentUser ? (
-            <div className="flex items-center gap-3 relative">
-              <div className="hidden sm:block text-right">
-                <p className="text-xs font-bold text-zinc-900 leading-none">{currentUser.displayName}</p>
-                <p className="text-[10px] text-zinc-500">{currentUser.email}</p>
-              </div>
-              <div className="relative">
-                <img 
-                  src={currentUser.photoURL || ''} 
-                  alt="Profile" 
-                  className="w-8 h-8 rounded-full border border-zinc-200 cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all"
-                  referrerPolicy="no-referrer"
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                />
-                
-                {showProfileMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowProfileMenu(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-zinc-200 rounded-xl shadow-xl z-50 py-1">
-                      <div className="px-4 py-2 border-b border-zinc-100 md:hidden">
-                        <p className="text-xs font-bold text-zinc-900 truncate">{currentUser.displayName}</p>
-                        <p className="text-[10px] text-zinc-500 truncate">{currentUser.email}</p>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          logout();
-                          setShowProfileMenu(false);
-                        }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-red-50 text-red-600 text-xs font-bold flex items-center gap-2 transition-colors"
-                      >
-                        <LogOut size={14} /> Cerrar Sesión
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+        <div className="mt-auto pt-6 border-t border-slate-100 space-y-4">
+          <div className="flex items-center gap-3 px-2 py-3">
+            <img src={user.photoURL || ''} alt="User" referrerPolicy="no-referrer" className="w-8 h-8 rounded-lg border border-slate-200" />
+            <div className="hidden lg:block min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate tracking-tight">{user.displayName}</p>
+              <p className="tech-label !tracking-tight !text-slate-400">OPERADOR_ACTIVO</p>
             </div>
-          ) : (
-            <button 
-              onClick={signInWithGoogle}
-              disabled={authLoading}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-            >
-              <User size={16} /> {authLoading ? '...' : 'Iniciar Sesión'}
-            </button>
-          )}
+          </div>
+          <button 
+            onClick={logout}
+            className="w-full h-10 text-slate-400 hover:text-slate-900 transition-all flex items-center justify-center lg:justify-start lg:px-4 gap-3"
+          >
+            <LogOut size={14} />
+            <span className="hidden lg:block text-[10px] font-bold uppercase tracking-widest">Desconectar</span>
+          </button>
         </div>
-      </header>
+      </nav>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 sm:ml-20 lg:ml-64 bg-slate-50/20">
         <AnimatePresence mode="wait">
-          <div key={activeTab}>
-            {activeTab !== 'home' && (
-              <div className="mb-8">
-                <motion.h1 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-3xl font-bold tracking-tight mb-2 text-zinc-900"
-                >
-                  {activeTab === 'dashboard' ? 'Inteligencia de Mercado' : 
-                   activeTab === 'creatives' ? 'Estudio Creativo' : 
-                   activeTab === 'analytics' ? 'Previsión de ROI' : 
-                   activeTab === 'leads' ? 'Extractor de Leads' : activeTab}
-                </motion.h1>
-                <p className="text-zinc-500 max-w-2xl text-sm">
-                  {activeTab === 'dashboard' && "Visión general de tus métricas de marketing y capacidades de IA."}
-                  {activeTab === 'creatives' && "Genera eslóganes, copys de anuncios y prompts visuales con Gemini AI."}
-                  {activeTab === 'analytics' && "Modela el ROI de tu campaña antes de asignar presupuesto con nuestro motor inteligente."}
-                  {activeTab === 'leads' && "Extrae leads B2B de alta calidad e información de contacto empresarial automáticamente."}
-                </p>
+          {activeTab === 'home' && (
+            <motion.div 
+              key="home"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-8 lg:p-12 max-w-7xl mx-auto"
+            >
+              <header className="mb-12 flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-slate-200 pb-10">
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="tech-label">SISTEMA_OPERATIVO • v5.0.2</span>
+                  </div>
+                  <h1 className="text-4xl font-bold tracking-tighter text-slate-900 mb-2">
+                    Panel de Control
+                  </h1>
+                  <p className="text-slate-500 font-medium text-lg">Terminal centralizada de inteligencia y automatización B2B.</p>
+                </div>
+                
+                <div className="flex gap-4">
+                   <div className="px-6 py-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+                      <p className="tech-label mb-1">PROYECCIÓN_ROI</p>
+                      <p className="text-2xl font-bold text-emerald-600">+12.4%</p>
+                   </div>
+                   <div className="px-6 py-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+                      <p className="tech-label mb-1">LEADS_EXTRACTED</p>
+                      <p className="text-2xl font-bold text-slate-900">4.8k</p>
+                   </div>
+                </div>
+              </header>
+
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <ModuleItem 
+                    title="Operaciones & Logs"
+                    desc="Monitoreo de actividad y métricas de salud técnica."
+                    icon={<Activity size={18} />}
+                    onClick={() => setActiveTab('dashboard')}
+                   />
+                   <ModuleItem 
+                    title="Creative Lab"
+                    desc="Generador de identidades corporativas y Brand DNA."
+                    icon={<Megaphone size={18} />}
+                    onClick={() => setActiveTab('creatives')}
+                   />
+                   <ModuleItem 
+                    title="ROI Forecast"
+                    desc="Predicción de crecimiento basada en modelos bayesianos."
+                    icon={<TrendingUp size={18} />}
+                    onClick={() => setActiveTab('analytics')}
+                   />
+                   <ModuleItem 
+                    title="Lead Engine"
+                    desc="Extracción automatizada de prospectos y scraping B2B."
+                    icon={<Database size={18} />}
+                    onClick={() => setActiveTab('leads')}
+                   />
+                </div>
+
+                <div className="card p-8 bg-white border-slate-200 flex flex-col h-fit sticky top-8">
+                  <header className="flex justify-between items-center mb-6">
+                    <h3 className="tech-label">SYSTEM_LOGS</h3>
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  </header>
+                  <div className="space-y-6">
+                     <ActivityItem title="Auditoría OK" time="2m ago" icon={<Activity size={12} />} />
+                     <ActivityItem title="Leads Sync" time="15m ago" icon={<Database size={12} />} />
+                     <ActivityItem title="Brand Generated" time="1h ago" icon={<Megaphone size={12} />} />
+                  </div>
+                  <button 
+                    onClick={() => setActiveTab('dashboard')}
+                    className="mt-8 pt-6 border-t border-slate-100 w-full text-center tech-label hover:text-slate-900 transition-colors"
+                  >
+                    View Full Console
+                  </button>
+                </div>
               </div>
-            )}
+            </motion.div>
+          )}
 
-            {renderContent()}
-          </div>
+          {activeTab !== 'home' && (
+             <motion.div 
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: 10 }}
+              className="p-8 lg:p-12 max-w-7xl mx-auto"
+             >
+                <div className="flex items-center gap-4 mb-8">
+                  <button 
+                    onClick={() => setActiveTab('home')}
+                    className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400"
+                  >
+                    <ChevronRight size={18} className="rotate-180" />
+                  </button>
+                  <h1 className="text-2xl font-bold tracking-tight uppercase">
+                    {activeTab === 'dashboard' && 'Protocolos de Diagnóstico'}
+                    {activeTab === 'creatives' && 'Ingeniería de Marca'}
+                    {activeTab === 'analytics' && 'Previsión Financiera'}
+                    {activeTab === 'leads' && 'Extracción de Datos'}
+                  </h1>
+                </div>
+
+                <div className="space-y-6">
+                  {activeTab === 'dashboard' && (
+                    <>
+                      <DashboardModule />
+                      <AuditModule />
+                    </>
+                  )}
+                  {activeTab === 'creatives' && <CreativeModule />}
+                  {activeTab === 'analytics' && <PredictorModule />}
+                  {activeTab === 'leads' && <LeadsModule />}
+                </div>
+             </motion.div>
+          )}
         </AnimatePresence>
-
-        {activeTab !== 'home' && (
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white border border-zinc-100 rounded-xl shadow-sm">
-            <SmallStat label="Consultas de Auditoría" value={globalStats.audits.toLocaleString()} />
-            <SmallStat label="Creativos Generados" value={globalStats.creatives.toLocaleString()} />
-            <SmallStat label="Leads Sincronizados" value={globalStats.leads.toLocaleString()} />
-            <SmallStat label="Estado del Motor" value={globalStats.status} />
-          </div>
-        )}
       </main>
 
-      {/* Mobile Nav Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 h-16 flex items-center justify-around px-6 z-50">
-        <MobileNavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<Rocket size={20} />} />
-        <MobileNavItem active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} icon={<LayoutDashboard size={20} />} />
-        <MobileNavItem active={activeTab === 'creatives'} onClick={() => setActiveTab('creatives')} icon={<Zap size={20} />} />
-        <MobileNavItem active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={<Activity size={20} />} />
-        <MobileNavItem active={activeTab === 'leads'} onClick={() => setActiveTab('leads')} icon={<Database size={20} />} />
-      </div>
+      {/* Floating Action Menu */}
+      {activeTab !== 'home' && (
+        <button 
+          onClick={() => setActiveTab('home')}
+          className="fixed bottom-8 right-8 w-12 h-12 bg-slate-900 text-white rounded-lg shadow-xl flex items-center justify-center hover:bg-black transition-all hover:scale-110 active:scale-95 z-50 border border-white/10"
+        >
+          <Brain size={18} />
+        </button>
+      )}
     </div>
-  );
-}
-
-function HomeCard({ icon, title, desc, color, onClick }: { icon: React.ReactNode, title: string, desc: string, color: string, onClick: () => void }) {
-  const colorClasses = {
-    blue: 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white',
-    purple: 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white',
-    emerald: 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white',
-    orange: 'bg-orange-50 text-orange-600 group-hover:bg-orange-600 group-hover:text-white',
-  }[color] || 'bg-slate-50 text-slate-600';
-
-  return (
-    <button 
-      onClick={onClick}
-      className="p-8 bg-white border border-slate-200 rounded-[2.5rem] hover:border-slate-300 hover:shadow-2xl hover:shadow-slate-200/50 transition-all text-left flex flex-col items-start gap-6 group relative overflow-hidden"
-    >
-      <div className={`p-4 rounded-2xl transition-all duration-300 ${colorClasses} shadow-sm group-hover:shadow-indigo-200`}>
-        {icon}
-      </div>
-      <div>
-        <h3 className="font-display font-bold text-xl text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{title}</h3>
-        <p className="text-sm text-slate-500 leading-relaxed font-medium">{desc}</p>
-      </div>
-      <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-        <Rocket size={20} className="text-indigo-200 rotate-45" />
-      </div>
-    </button>
   );
 }
 
@@ -291,36 +250,55 @@ function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: (
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all ${
-        active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 group ${
+        active 
+          ? 'bg-slate-900 text-white font-bold' 
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
       }`}
     >
-      {icon}
-      {label}
+      <span className="shrink-0">{icon}</span>
+      <span className="hidden lg:block text-xs font-bold uppercase tracking-widest truncate">{label}</span>
     </button>
   );
 }
 
-function MobileNavItem({ active, onClick, icon }: { active: boolean, onClick: () => void, icon: React.ReactNode }) {
+function ModuleItem({ title, desc, icon, onClick }: { title: string, desc: string, icon: React.ReactNode, onClick: () => void }) {
   return (
-    <button
+    <button 
       onClick={onClick}
-      className={`p-2 rounded-lg transition-all ${
-        active ? 'text-zinc-900 bg-zinc-100' : 'text-zinc-400'
-      }`}
+      className="p-8 bg-white border border-slate-200 rounded-xl text-left hover:border-slate-900 transition-all group flex flex-col h-full"
     >
-      {icon}
+      <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center mb-6 border border-slate-100 group-hover:bg-slate-900 group-hover:text-white transition-all">
+        {icon}
+      </div>
+      <h3 className="text-lg font-bold text-slate-900 mb-2 truncate w-full tracking-tight">{title}</h3>
+      <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6">{desc}</p>
+      <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+        <span className="tech-label !text-slate-300 group-hover:!text-slate-900 transition-colors">ACCESS_TERMINAL</span>
+        <ChevronRight size={14} className="text-slate-300 group-hover:translate-x-1 group-hover:text-slate-900 transition-all" />
+      </div>
     </button>
   );
 }
 
-function SmallStat({ label, value }: { label: string, value: string }) {
+function ActivityItem({ title, time, icon }: { title: string, time: string, icon: React.ReactNode }) {
   return (
-    <div className="text-center">
-      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">{label}</span>
-      <span className="text-sm font-mono font-medium text-zinc-700">{value}</span>
+    <div className="flex items-center gap-4">
+      <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+        <span className="text-slate-400">{icon}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-slate-800 truncate leading-none mb-1">{title}</p>
+        <p className="tech-label !tracking-tight !text-slate-400">{time}</p>
+      </div>
     </div>
   );
 }
 
-
+export default function App() {
+  return (
+    <FirebaseProvider>
+      <AppContent />
+    </FirebaseProvider>
+  );
+}
