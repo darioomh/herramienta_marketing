@@ -48,12 +48,16 @@ export default function PredictorModule() {
       setResult(data);
 
       if (user) {
-        await addDoc(collection(db, 'history'), {
-          userId: user.uid,
-          type: 'roi',
-          payload: { ...inputs, ...data },
-          createdAt: serverTimestamp(),
-        });
+        try {
+          await addDoc(collection(db, 'history'), {
+            userId: user.uid,
+            type: 'roi',
+            payload: { ...inputs, ...data },
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn("Failed to log history", e);
+        }
       }
     } catch (e: any) {
       console.error(e);

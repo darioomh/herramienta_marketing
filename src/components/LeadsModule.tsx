@@ -49,12 +49,16 @@ export default function LeadsModule() {
         addLog(`Éxito: ${data.length} entidades encontradas.`);
         setLeads(data);
         if (user) {
-          await addDoc(collection(db, 'history'), {
-            userId: user.uid,
-            type: 'lead',
-            payload: { sector, leads: data },
-            createdAt: serverTimestamp(),
-          });
+          try {
+            await addDoc(collection(db, 'history'), {
+              userId: user.uid,
+              type: 'lead',
+              payload: { sector, leads: data },
+              createdAt: serverTimestamp(),
+            });
+          } catch (e) {
+            console.warn("Failed to log history", e);
+          }
         }
       } else {
         throw new Error("Gemini no devolvió resultados utilizables.");
@@ -91,12 +95,16 @@ export default function LeadsModule() {
         addLog(`Raspado finalizado: ${data.emails.length} contactos detectados.`);
         setScrapedEmails(data.emails);
         if (user) {
-          await addDoc(collection(db, 'history'), {
-            userId: user.uid,
-            type: 'lead',
-            payload: { domain: targetUrl, emailsFound: data.emails.length },
-            createdAt: serverTimestamp(),
-          });
+          try {
+            await addDoc(collection(db, 'history'), {
+              userId: user.uid,
+              type: 'lead',
+              payload: { domain: targetUrl, emailsFound: data.emails.length },
+              createdAt: serverTimestamp(),
+            });
+          } catch (e) {
+            console.warn("Failed to log history", e);
+          }
         }
       }
     } catch (err: any) {

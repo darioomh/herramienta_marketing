@@ -36,12 +36,16 @@ export default function AuditModule() {
       setResult(data);
 
       if (user) {
-        await addDoc(collection(db, 'history'), {
-          userId: user.uid,
-          type: 'audit',
-          payload: { url: formattedUrl, ...data },
-          createdAt: serverTimestamp(),
-        });
+        try {
+          await addDoc(collection(db, 'history'), {
+            userId: user.uid,
+            type: 'audit',
+            payload: { url: formattedUrl, ...data },
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn("Failed to log history", e);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Error al conectar con el sitio.');
