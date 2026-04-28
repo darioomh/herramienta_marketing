@@ -167,7 +167,9 @@ async function startServer() {
       }
 
       const text = result.text || "";
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      // Anchor to `[{ ... }]` so we don't pick up citation brackets like [1], [2]
+      // that Google Search grounding can sprinkle through the response.
+      const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
       const leads = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
       if (!Array.isArray(leads) || leads.length === 0) {

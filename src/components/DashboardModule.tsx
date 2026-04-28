@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, orderBy, limit, onSnapshot, getCountFromServer } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './FirebaseProvider';
-import { LayoutDashboard, Zap, Activity, Database, Clock, ArrowUpRight, ShieldCheck, Search, Star } from 'lucide-react';
+import { LayoutDashboard, Zap, Activity, Database, Clock, ArrowUpRight, ShieldCheck, Search, Star, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface HistoryItem {
   id: string;
-  type: 'creative' | 'lead' | 'audit';
+  type: 'creative' | 'lead' | 'audit' | 'roi';
   payload: any;
   createdAt: any;
 }
@@ -108,10 +108,16 @@ export default function DashboardModule() {
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-sm font-bold text-slate-900 leading-none mb-1">
-                            {item.type === 'audit' ? 'Auditoría Web' : item.type === 'creative' ? 'Generación Marca' : 'Extracción Leads'}
+                            {item.type === 'audit' && 'Auditoría Web'}
+                            {item.type === 'creative' && 'Generación Marca'}
+                            {item.type === 'lead' && 'Extracción Leads'}
+                            {item.type === 'roi' && 'Forecast ROI'}
                         </h4>
                         <p className="tech-label !lowercase !tracking-tight opacity-60 truncate max-w-[150px] sm:max-w-xs">
-                          {item.type === 'audit' ? item.payload.url : item.type === 'creative' ? item.payload.product : item.payload.sector}
+                          {item.type === 'audit' && item.payload.url}
+                          {item.type === 'creative' && item.payload.product}
+                          {item.type === 'lead' && (item.payload.sector || item.payload.domain)}
+                          {item.type === 'roi' && `Presupuesto $${item.payload.budget} · ROI ${item.payload.expected_roi_ratio}x`}
                         </p>
                       </div>
                     </div>
@@ -201,6 +207,7 @@ function getTypeIcon(type: string) {
         case 'audit': return <ShieldCheck size={14} />;
         case 'creative': return <Zap size={14} />;
         case 'lead': return <Database size={14} />;
+        case 'roi': return <TrendingUp size={14} />;
         default: return <Clock size={14} />;
     }
 }
@@ -210,6 +217,7 @@ function getTypeColor(type: string) {
         case 'audit': return 'bg-slate-200 text-slate-900';
         case 'creative': return 'bg-slate-200 text-slate-900';
         case 'lead': return 'bg-slate-200 text-slate-900';
+        case 'roi': return 'bg-slate-200 text-slate-900';
         default: return 'bg-slate-200 text-slate-500';
     }
 }

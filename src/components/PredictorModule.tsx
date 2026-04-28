@@ -50,7 +50,7 @@ export default function PredictorModule() {
       if (user) {
         await addDoc(collection(db, 'history'), {
           userId: user.uid,
-          type: 'audit',
+          type: 'roi',
           payload: { ...inputs, ...data },
           createdAt: serverTimestamp(),
         });
