@@ -36,12 +36,16 @@ export default function AuditModule() {
       setResult(data);
 
       if (user) {
-        await addDoc(collection(db, 'history'), {
-          userId: user.uid,
-          type: 'audit',
-          payload: { url: formattedUrl, ...data },
-          createdAt: serverTimestamp(),
-        });
+        try {
+          await addDoc(collection(db, 'history'), {
+            userId: user.uid,
+            type: 'audit',
+            payload: { url: formattedUrl, ...data },
+            createdAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.warn("Failed to log history", e);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'Error al conectar con el sitio.');
@@ -126,8 +130,8 @@ export default function AuditModule() {
                     </div>
                     <h4 className="text-xl font-bold mb-2 tracking-tight">Optimization Report</h4>
                     <p className="text-slate-300 font-medium text-sm leading-relaxed">
-                        {!result.has_fb_pixel ? 
-                            "Detectamos ausencia de rastreo avanzado. Implementar esta tecnología ahora desbloquearía una mejora del 32% en el ROAS proyectado." :
+                        {!result.has_fb_pixel ?
+                            "Detectamos ausencia de rastreo avanzado. Implementar un pixel de conversión te permitirá medir y optimizar campañas con datos reales." :
                             "Configuración básica detectada. Recomendamos escalar el tracking a eventos de comportamiento para mejorar la precisión del modelo."
                         }
                     </p>

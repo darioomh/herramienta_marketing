@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { Sparkles, Copy, Mail, Layout, Zap, Loader2, Wand2, Rocket } from 'lucide-react';
+import { Sparkles, Copy, Mail, Layout, Zap, Loader2, Wand2, Rocket, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from './FirebaseProvider';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
 
 interface CreativeBundle {
   slogan: string;
@@ -28,34 +25,25 @@ export default function CreativeModule() {
   const [logoLoading, setLogoLoading] = useState(false);
   const [bundle, setBundle] = useState<CreativeBundle | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const generateCreative = async () => {
     if (!product) return;
     setLoading(true);
+    setError(null);
     setLogoUrl(null);
     setBundle(null);
     try {
-      const response = await ai.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent({
-        contents: [{ role: 'user', parts: [{ text: `Genera una IDENTIDAD DE MARCA COMPLETA para este producto en ESPAÑOL: ${product}. 
-          Responde EXCLUSIVAMENTE en formato JSON con la siguiente estructura:
-          {
-            "slogan": "eslogan corto",
-            "newsletter_subject": "asunto atractivo",
-            "newsletter_content": "cuerpo de la newsletter persuasivo y completo",
-            "banner_prompt": "prompt para imagen de fondo",
-            "ad_copy": "texto persuasivo corto",
-            "logo_concept": "objeto único y simple (ej: 'una montaña abstracta')",
-            "colors": ["#hex1", "#hex2", "#hex3"],
-            "tone": "descriptivo (ej: Rebelde, Sofisticado)",
-            "values": ["valor1", "valor2"],
-            "audience": "público objetivo corto"
-          }` }]}],
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
+      const response = await fetch('/api/creative', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product }),
       });
-
-      const data = JSON.parse(response.response.text());
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `Error ${response.status} al generar la marca.`);
+      }
+      const data: CreativeBundle = await response.json();
       setBundle(data);
       setLoading(false);
 
@@ -74,14 +62,23 @@ export default function CreativeModule() {
 
       setLogoLoading(true);
       try {
-        const seed = Math.floor(Math.random() * 1000000);
-        const cleanLogoPrompt = encodeURIComponent(`Professional logo, minimalist icon for a brand called ${product}, ${data.logo_concept}, flat vector, creative design, high quality, white background, masterpiece`);
-        setLogoUrl(`https://pollinations.ai/p/${cleanLogoPrompt}?width=512&height=512&nologo=true&seed=${seed}&model=flux`);
+        const logoRes = await fetch('/api/creative-logo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product, logo_concept: data.logo_concept }),
+        });
+        if (logoRes.ok) {
+          const logoData = await logoRes.json();
+          setLogoUrl(logoData.logoUrl);
+        }
+      } catch (logoErr) {
+        console.warn("Logo generation failed", logoErr);
       } finally {
         setLogoLoading(false);
       }
-    } catch (error: any) {
-      console.error("Generation error:", error);
+    } catch (err: any) {
+      console.error("Generation error:", err);
+      setError(err.message || 'Error de red al generar la marca.');
       setLoading(false);
     }
   };
@@ -125,6 +122,19 @@ export default function CreativeModule() {
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-red-50 text-red-700 rounded-lg flex items-start gap-3 border border-red-100 mb-6"
+          >
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-xs uppercase tracking-tight">Generation Error</h4>
+              <p className="font-medium text-[11px] leading-snug">{error}</p>
+            </div>
+          </motion.div>
+        )}
         <AnimatePresence mode="wait">
           {bundle ? (
             <motion.div
