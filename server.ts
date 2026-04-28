@@ -263,6 +263,10 @@ async function startServer() {
 
       const data = JSON.parse(result.text || "{}");
 
+      if (!data.slogan || !Array.isArray(data.colors) || !Array.isArray(data.values)) {
+        return res.status(502).json({ error: "Gemini no devolvió una identidad de marca válida. Reintenta." });
+      }
+
       stats.creatives++;
       saveStats(stats);
       res.json(data);
