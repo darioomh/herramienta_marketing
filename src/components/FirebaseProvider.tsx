@@ -63,20 +63,20 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           const userRef = doc(db, 'users', u.uid);
           const userSnap = await getDoc(userRef);
 
-          const userData = {
+          const updatableFields = {
             displayName: u.displayName,
-            email: u.email,
             photoURL: u.photoURL,
             lastLogin: serverTimestamp(),
           };
 
           if (!userSnap.exists()) {
             await setDoc(userRef, {
-              ...userData,
+              ...updatableFields,
+              email: u.email,
               createdAt: serverTimestamp(),
             });
           } else {
-            await setDoc(userRef, userData, { merge: true });
+            await setDoc(userRef, updatableFields, { merge: true });
           }
         } catch (error) {
           console.error('Failed to sync user profile', error);
